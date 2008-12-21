@@ -17,4 +17,9 @@ Maintainer:      Chris Eidhof <ce+hackage@tupil.com>
 Exposed-Modules:   Text.Formlets
                  , Text.XHtml.Strict.Formlets
 Build-Type:      Simple
-Build-Depends:   base, haskell98, mtl, xhtml, applicative-extras, bytestring
+Build-Depends:   base, 
+                 haskell98, 
+                 mtl, 
+                 xhtml, 
+                 applicative-extras >= 0.1.3, 
+                 bytestring
