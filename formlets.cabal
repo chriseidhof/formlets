@@ -1,0 +1,20 @@
+Name:            formlets
+Version:         0.4.7
+Synopsis:        Formlets implemented in Haskell
+Description:     A modular way to build forms based on applicative functors, as
+                 described in:
+                 .
+                  * Ezra Cooper, Samuel Lindley, Philip Wadler and Jeremy Yallop
+                    \"An idiom's guide to formlets\"
+                    Technical Report, EDI-INF-RR-1263.
+                    <http://groups.inf.ed.ac.uk/links/formlets/>
+Category:        XML, Web, User Interfaces, Text
+License:         BSD3
+License-file:    LICENSE
+Copyright:       (c) Jeremy Yallop / Tupil
+Author:          Jeremy Yallop / Chris Eidhof
+Maintainer:      Chris Eidhof <ce+hackage@tupil.com>
+Exposed-Modules:   Text.Formlets
+                 , Text.XHtml.Strict.Formlets
+Build-Type:      Simple
+Build-Depends:   base, haskell98, mtl, xhtml, applicative-extras, bytestring
