@@ -15,10 +15,6 @@ import Data.List (elemIndex)
 
 type XHtmlForm m a = Form X.Html m a
 
-instance Plus X.Html where
-  zero = X.noHtml
-  plus = (+++)
-
 -- | An input field with an optional value
 input :: Monad m => Maybe String -> XHtmlForm m String
 input = input' (\n v -> X.textfield n ! [X.value v])

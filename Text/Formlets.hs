@@ -5,11 +5,12 @@ module Text.Formlets ( input', optionalInput, inputFile, fmapFst, nothingIfNull
                      , massInput
                      , xml, plug
                      , withPrefix
-                     , Env , Form , Plus (..)
+                     , Env , Form
                      , File (..), ContentType (..), FormContentType (..)
                      )
                      where
 
+import Data.Monoid
 import Control.Applicative
 import Control.Applicative.Error
 import Control.Applicative.State
@@ -30,10 +31,6 @@ data ContentType = ContentType { ctType :: String
                                , ctParameters :: [(String, String)]
                                }
                                deriving (Eq, Show, Read)
-
-class Plus a where
-  zero      :: a
-  plus      :: a -> a -> a
 
 -- | Apply a predicate to a value and return Success or Failure as appropriate
 ensure :: Show a 
@@ -122,7 +119,7 @@ instance (Functor m, Monad m) => Functor (Form xml m) where
 fmapFst  f (a, b)    = (f a, b)
 fmapFst3 f (a, b, c) = (f a, b, c)
 
-instance (Monad m, Applicative m, Plus xml) => Applicative (Form xml m) where
+instance (Monad m, Applicative m, Monoid xml) => Applicative (Form xml m) where
    pure = pureF
    (<*>) = applyF
 
@@ -131,7 +128,7 @@ xml :: Monad m => xml -> Form xml m ()
 xml x = Form $ \env -> pure (const $ return $ Success (), return x, UrlEncoded)
 
 -- | Transform the XML component
-plug :: (Monad m, Plus xml) => (xml -> xml1) -> Form xml m a -> Form xml1 m a
+plug :: (Monad m, Monoid xml) => (xml -> xml1) -> Form xml m a -> Form xml1 m a
 f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
    where plugin (c, x, t) = (c, liftM f x, t)
 
@@ -141,16 +138,16 @@ f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
 -- | This form has to have the same variable-names as the original form, but prefixed by the prefix.
 -- | 
 -- | Typically, some client-side code is needed to duplicate the original form and generate a unique prefix.
-massInput :: (Plus xml, Applicative m, Monad m) => (Form xml m (Maybe String)) -> Form xml m a -> ([String] -> xml) -> Form xml m [a]
+massInput :: (Monoid xml, Applicative m, Monad m) => (Form xml m (Maybe String)) -> Form xml m a -> ([String] -> xml) -> Form xml m [a]
 massInput h f showErrors = massInputHelper form showErrors
  where form = (,) <$> f <*> h
 
-massInputHelper :: (Plus xml, Applicative m, Monad m) 
+massInputHelper :: (Monoid xml, Applicative m, Monad m) 
                 => Form xml m (a, Maybe String)  -- The form
                 -> ([String] -> xml)             -- How to show errors
                 -> Form xml m [a]
 massInputHelper f showErrors = join f
-  where join :: (Plus xml, Applicative m, Monad m) => Form xml m (a, Maybe String) -> Form xml m [a]
+  where join :: (Monoid xml, Applicative m, Monad m) => Form xml m (a, Maybe String) -> Form xml m [a]
         join (Form f) = Form $ \env -> start (f env) env
         start :: (Monad m) => State FormState (Collector (m (Failing (a, Maybe String))), xml, FormContentType) -> Env -> State FormState (Collector (m (Failing [a])), xml, FormContentType)
         start f e =     do  currentState <- get
@@ -202,15 +199,15 @@ orT UrlEncoded x = x
 orT x UrlEncoded = x
 orT x y          = x
 
-pureF :: (Monad m, Plus xml) => a -> Form xml m a
-pureF v = Form $ \env -> pure (const (return $ Success v), return zero, UrlEncoded)
+pureF :: (Monad m, Monoid xml) => a -> Form xml m a
+pureF v = Form $ \env -> pure (const (return $ Success v), return mempty, UrlEncoded)
 
-pureM :: (Monad m, Plus xml) => m a -> Form xml m a
-pureM v = Form $ \env -> pure (const (liftM Success v), return zero, UrlEncoded)
+pureM :: (Monad m, Monoid xml) => m a -> Form xml m a
+pureM v = Form $ \env -> pure (const (liftM Success v), return mempty, UrlEncoded)
 
-applyF :: (Monad m, Applicative m, Plus xml) => Form xml m (a -> b) -> Form xml m a -> Form xml m b
+applyF :: (Monad m, Applicative m, Monoid xml) => Form xml m (a -> b) -> Form xml m a -> Form xml m b
 (Form f) `applyF` (Form v) = Form $ \env -> combine <$> f env <*> v env
-  where combine (v1, xml1, t1) (v2, xml2, t2) = (first v1 v2, (plus <$> xml1 <*> xml2), t1 `orT` t2)
+  where combine (v1, xml1, t1) (v2, xml2, t2) = (first v1 v2, (mappend <$> xml1 <*> xml2), t1 `orT` t2)
         first v1 v2 e = do x <- v1 e 
                            y <- v2 e
                            return $ x <*> y
