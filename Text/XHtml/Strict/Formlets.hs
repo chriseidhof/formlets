@@ -1,6 +1,7 @@
 module Text.XHtml.Strict.Formlets ( input, textarea, password, file
                                   , hidden, inputInteger, radio, enumRadio
-                                  , selectRaw, select
+                                  , label
+                                  , selectRaw, select, enumSelect
                                   , XHtmlForm
                                   , module Text.Formlets
                                   ) where
@@ -58,6 +59,8 @@ enumRadio values defaultValue = radio (map toS values) (fmap (show . fromEnum) d
  where toS = fmapFst (show . fromEnum)
        convert v = maybeRead' v "Conversion error" 
 
+label str = xml $ X.label $ X.toHtml str
+
 selectRaw :: Monad m => [(String, String)] -> Maybe String -> XHtmlForm m String
 selectRaw choices = input' mkChoices -- todo: validate that the result was in the choices
  where mkChoices name selected = X.select ! [X.name name] $ X.concatHtml $ map (mkChoice selected) choices
@@ -73,3 +76,6 @@ select ls v = selectRaw (map f $ zip [0..] ls) selected `check` asInt `check` co
        convert i      | i >= length ls || i < 0 = Failure ["Out of bounds"]
                       | otherwise               = Success $ fst $ ls !! i
        asInt   s      = maybeRead' s (s ++ " is not a valid int")
+
+enumSelect :: (Show a, Bounded a, Enum a, Eq a) => Maybe a -> XHtmlForm IO a
+enumSelect = select (zip items (map show items)) where items = [minBound ..]
