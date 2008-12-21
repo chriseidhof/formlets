@@ -1,4 +1,4 @@
-module Text.Formlets ( input', inputFile, fmapFst, nothingIfNull
+module Text.Formlets ( input', optionalInput, inputFile, fmapFst, nothingIfNull
                      , check, ensure, ensures
                      , ensureM, checkM, pureM
                      , runFormState 
@@ -72,6 +72,14 @@ input' i defaultValue = Form $ \env -> mkInput env <$> freshName
          fromLeft n Nothing         = Failure [n ++ " is not in the data"]
          fromLeft n (Just (Left x)) = Success x
          fromLeft n _               = Failure [n ++ " is a file."]
+
+optionalInput :: Monad m => (String -> xml) -> Form xml m (Maybe String)
+optionalInput i = Form $ \env -> mkInput env <$> freshName
+   where mkInput env name = (return . fromLeft name . (lookup name),
+                             return (i name), UrlEncoded)
+         fromLeft n Nothing         = Success Nothing
+         fromLeft n (Just (Left x)) = Success (Just x)
+         fromLeft n _               = Failure [n ++ " could not be recognized."]
 
 -- | A File input widget.
 inputFile :: Monad m 
