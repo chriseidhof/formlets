@@ -138,7 +138,11 @@ f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
 -- | This form has to have the same variable-names as the original form, but prefixed by the prefix.
 -- | 
 -- | Typically, some client-side code is needed to duplicate the original form and generate a unique prefix.
-massInput :: (Monoid xml, Applicative m, Monad m) => (Form xml m (Maybe String)) -> Form xml m a -> ([String] -> xml) -> Form xml m [a]
+massInput :: (Monoid xml, Applicative m, Monad m)
+          => (Form xml m (Maybe String))
+          -> Form xml m a
+          -> ([String] -> xml)
+          -> Form xml m [a]
 massInput h f showErrors = massInputHelper form showErrors
  where form = (,) <$> f <*> h
 
@@ -149,11 +153,16 @@ massInputHelper :: (Monoid xml, Applicative m, Monad m)
 massInputHelper f showErrors = join f
   where join :: (Monoid xml, Applicative m, Monad m) => Form xml m (a, Maybe String) -> Form xml m [a]
         join (Form f) = Form $ \env -> start (f env) env
-        start :: (Monad m) => State FormState (Collector (m (Failing (a, Maybe String))), xml, FormContentType) -> Env -> State FormState (Collector (m (Failing [a])), xml, FormContentType)
+        start :: (Monad m)
+          => State FormState (Collector (m (Failing (a, Maybe String))), xml, FormContentType)
+          -> Env
+          -> State FormState (Collector (m (Failing [a])), xml, FormContentType)
         start f e =     do  currentState <- get
                             --todo use v
-                            let (v, xml, t) = evalState f currentState
+                            let (a, s) = runState f currentState
+                            let (v, xml, t) = a
                             let v' = evalState (combineIt [] f (Just v)) currentState
+                            put s
                             return (v', xml, t)
         combineIt p f v = do currentState <- get
                              let x = findLinkedList f currentState
