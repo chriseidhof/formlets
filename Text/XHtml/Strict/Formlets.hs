@@ -73,5 +73,5 @@ select ls v = selectRaw (map f $ zip [0..] ls) selected `check` asInt `check` co
                       | otherwise               = Success $ fst $ ls !! i
        asInt   s      = maybeRead' s (s ++ " is not a valid int")
 
-enumSelect :: (Show a, Bounded a, Enum a, Eq a) => Maybe a -> XHtmlForm IO a
-enumSelect = select (zip items (map show items)) where items = [minBound ..]
+enumSelect :: (Show a, Bounded a, Enum a, Eq a, Monad m) => Maybe a -> XHtmlForm m a
+enumSelect = select (zip items (map show items)) where items = [minBound..maxBound]
