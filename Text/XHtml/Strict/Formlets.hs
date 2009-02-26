@@ -1,4 +1,4 @@
-module Text.XHtml.Strict.Formlets ( input, textarea, password, file
+module Text.XHtml.Strict.Formlets ( input, textarea, password, file, checkbox
                                   , hidden, inputInteger, radio, enumRadio
                                   , label
                                   , selectRaw, select, enumSelect
@@ -36,6 +36,13 @@ inputInteger x = input (fmap show x) `check` asInteger
 
 file :: Monad m => XHtmlForm m File
 file = inputFile X.afile
+
+checkbox :: Monad m => Maybe Bool -> XHtmlForm m Bool
+checkbox d = (input' (\n v -> X.checkbox n "true") (boolStr d)) `check` asBool
+  where asBool "true" = Success True
+        asBool _ = Success False
+        boolStr (Just True) = Just "true"
+        boolStr _ = Nothing
 
 -- | A radio choice
 radio :: Monad m => [(String, String)] -> Maybe String -> XHtmlForm m String
