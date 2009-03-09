@@ -1,4 +1,4 @@
-module Text.Formlets ( input', optionalInput, inputFile, fmapFst, nothingIfNull
+module Text.Formlets ( input', inputM', optionalInput, inputFile, fmapFst, nothingIfNull
                      , check, ensure, ensures
                      , ensureM, checkM, pureM
                      , runFormState 
@@ -60,9 +60,12 @@ ensures ps x | null errors = Success x
 
 -- | Helper function for genereting input components based forms.
 input' :: Monad m => (String -> String -> xml) -> Maybe String -> Form xml m String
-input' i defaultValue = Form $ \env -> mkInput env <$> freshName
+input' i = inputM' (\n v -> return $ i n v)
+
+inputM' :: Monad m => (String -> String -> m xml) -> Maybe String -> Form xml m String
+inputM' i defaultValue = Form $ \env -> mkInput env <$> freshName
    where mkInput env name = (return . fromLeft name . (lookup name),
-                             return (i name (value name env)), UrlEncoded)
+                             i name (value name env), UrlEncoded)
          value name env = maybe (maybe "" id defaultValue) fromLeft' (lookup name env)
          fromLeft' (Left x) = x
          fromLeft' _        = ""

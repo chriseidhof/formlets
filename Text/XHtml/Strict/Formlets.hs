@@ -1,7 +1,7 @@
 module Text.XHtml.Strict.Formlets ( input, textarea, password, file, checkbox
                                   , hidden, inputInteger, radio, enumRadio
                                   , label
-                                  , selectRaw, select, enumSelect
+                                  , selectXHtml, selectRaw, select, enumSelect
                                   , XHtmlForm
                                   , module Text.Formlets
                                   ) where
@@ -64,21 +64,22 @@ enumRadio values defaultValue = radio (map toS values) (fmap (show . fromEnum) d
 
 label str = xml $ X.label $ X.toHtml str
 
-selectRaw :: Monad m => [(String, String)] -> Maybe String -> XHtmlForm m String
-selectRaw choices = input' mkChoices -- todo: validate that the result was in the choices
- where mkChoices name selected = X.select ! [X.name name] $ X.concatHtml $ map (mkChoice selected) choices
-       mkChoice  selected (value, label) = X.option ! (attrs ++ [X.value value]) << label
-        where attrs | selected == value = [X.selected]
-                    | otherwise = []
+selectXHtml attr choices name selected = X.select ! (X.name name:attr) $ X.concatHtml $ map (mkChoice selected) choices
+  where mkChoice  selected (value, label) = X.option ! (attrs ++ [X.value value]) << label
+         where attrs | selected == value = [X.selected]
+                     | otherwise = []
+
+--selectRaw :: Monad m => [(String, String)] -> Maybe String -> XHtmlForm m String
+selectRaw attrs choices = input' $ selectXHtml attrs choices -- todo: validate that the result was in the choices
 
 -- | A drop-down for anything that is an instance of Eq
-select :: (Eq a, Monad m) => [(a, String)] -> Maybe a -> XHtmlForm m a
-select ls v = selectRaw (map f $ zip [0..] ls) selected `check` asInt `check` convert
+--select :: (Eq a, Monad m) => [(a, String)] -> Maybe a -> XHtmlForm m a
+select attrs ls v = selectRaw attrs (map f $ zip [0..] ls) selected `check` asInt `check` convert
  where selected       = show <$> (v >>= flip elemIndex (map fst ls))
        f (idx, (_,l)) = (show idx, l)
        convert i      | i >= length ls || i < 0 = Failure ["Out of bounds"]
                       | otherwise               = Success $ fst $ ls !! i
        asInt   s      = maybeRead' s (s ++ " is not a valid int")
 
-enumSelect :: (Show a, Bounded a, Enum a, Eq a, Monad m) => Maybe a -> XHtmlForm m a
-enumSelect = select (zip items (map show items)) where items = [minBound..maxBound]
+-- enumSelect :: (Show a, Bounded a, Enum a, Eq a, Monad m) => Maybe a -> XHtmlForm m a
+enumSelect attrs = select attrs (zip items (map show items)) where items = [minBound..maxBound]
