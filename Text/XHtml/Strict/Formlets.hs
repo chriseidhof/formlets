@@ -38,11 +38,11 @@ file :: Monad m => XHtmlForm m File
 file = inputFile X.afile
 
 checkbox :: Monad m => Maybe Bool -> XHtmlForm m Bool
-checkbox d = (input' (\n v -> X.checkbox n "true") (boolStr d)) `check` asBool
-  where asBool "true" = Success True
-        asBool _ = Success False
-        boolStr (Just True) = Just "true"
-        boolStr _ = Nothing
+checkbox d = (optionalInput (xml d)) `check` asBool
+  where asBool (Just _) = Success True
+        asBool Nothing = Success False
+        xml (Just True) n = X.widget "checkbox" n [X.value "on", X.checked]
+        xml _ n = X.checkbox n "on"
 
 -- | A radio choice
 radio :: Monad m => [(String, String)] -> Maybe String -> XHtmlForm m String
