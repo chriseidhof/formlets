@@ -19,8 +19,11 @@ type XHtmlForm m a = Form X.Html m a
 input :: Monad m => Maybe String -> XHtmlForm m String
 input = input' (\n v -> X.textfield n ! [X.value v])
 
-textarea :: Monad m => Maybe String -> XHtmlForm m String
-textarea = input' (\n v -> X.textarea (X.toHtml v) ! [X.name n])
+textarea :: Monad m => Maybe Int -> Maybe Int -> Maybe String -> XHtmlForm m String
+textarea r c = input' (\n v -> X.textarea (X.toHtml v) ! (attrs n))
+  where rows = maybe [] (\x -> [X.rows $ show x]) r
+        cols = maybe [] (\x -> [X.cols $ show x]) c
+        attrs n = [X.name n] ++ rows ++ cols
 
 -- | A password field with an optional value
 password :: Monad m => Maybe String -> XHtmlForm m String
