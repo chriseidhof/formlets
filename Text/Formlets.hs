@@ -202,7 +202,7 @@ freshName = do n <- currentName
                return n
 
 currentName :: State FormState String
-currentName = gets $ \(n, prefix) ->  prefix ++ "input" ++ show n
+currentName = gets $ \(n, prefix) ->  prefix ++ "fval" ++ show n
 
 changePrefix :: String -> State FormState ()
 changePrefix p = modify (\(n,_) -> (n, p))
