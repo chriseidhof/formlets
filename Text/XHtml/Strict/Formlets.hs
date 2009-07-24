@@ -19,6 +19,7 @@ type XHtmlForm m a = Form X.Html m a
 input :: Monad m => Maybe String -> XHtmlForm m String
 input = input' (\n v -> X.textfield n ! [X.value v])
 
+-- | A textarea with optional rows and columns, and an optional value
 textarea :: Monad m => Maybe Int -> Maybe Int -> Maybe String -> XHtmlForm m String
 textarea r c = input' (\n v -> X.textarea (X.toHtml v) ! (attrs n))
   where rows = maybe [] (\x -> [X.rows $ show x]) r
@@ -37,9 +38,11 @@ hidden  =  input' X.hidden
 inputInteger :: Monad m => Maybe Integer -> XHtmlForm m Integer
 inputInteger x = input (fmap show x) `check` asInteger 
 
+-- | A file upload form
 file :: Monad m => XHtmlForm m File
 file = inputFile X.afile
 
+-- | A checkbox with an optional default value
 checkbox :: Monad m => Maybe Bool -> XHtmlForm m Bool
 checkbox d = (optionalInput (xml d)) `check` asBool
   where asBool (Just _) = Success True
@@ -65,18 +68,31 @@ enumRadio values defaultValue = radio (map toS values) (fmap (show . fromEnum) d
  where toS = fmapFst (show . fromEnum)
        convert v = maybeRead' v "Conversion error" 
 
-label str = xml $ X.label $ X.toHtml str
+label :: (Monad m, X.HTML h) => h -> Form X.Html m ()
+label = xml . X.label . X.toHtml
 
+-- | This is a helper function to generate select boxes
+selectXHtml :: (X.HTML h) 
+            => [X.HtmlAttr]  -- ^ Optional attributes for the select-box
+            -> [(String, h)] -- ^ The values and their labels
+            -> String        -- ^ The name
+            -> String        -- ^ The value that is selected
+            -> X.Html
 selectXHtml attr choices name selected = X.select ! (X.name name:attr) $ X.concatHtml $ map (mkChoice selected) choices
   where mkChoice  selected (value, label) = X.option ! (attrs ++ [X.value value]) << label
          where attrs | selected == value = [X.selected]
                      | otherwise = []
 
---selectRaw :: Monad m => [(String, String)] -> Maybe String -> XHtmlForm m String
+-- | A drop-down for selecting values
+selectRaw :: (Monad m, X.HTML h) 
+          => [X.HtmlAttr]  -- ^ Optional attributes for the select-element
+          -> [(String, h)] -- ^ Pairs of value/label
+          -> Maybe String  -- ^ An optional default value
+          -> Form X.Html m String
 selectRaw attrs choices = input' $ selectXHtml attrs choices -- todo: validate that the result was in the choices
 
 -- | A drop-down for anything that is an instance of Eq
---select :: (Eq a, Monad m) => [(a, String)] -> Maybe a -> XHtmlForm m a
+select :: (Eq a, Monad m, X.HTML h) => [X.HtmlAttr] -> [(a, h)] -> Maybe a -> Form X.Html m a
 select attrs ls v = selectRaw attrs (map f $ zip [0..] ls) selected `check` asInt `check` convert
  where selected       = show <$> (v >>= flip elemIndex (map fst ls))
        f (idx, (_,l)) = (show idx, l)
@@ -84,5 +100,9 @@ select attrs ls v = selectRaw attrs (map f $ zip [0..] ls) selected `check` asIn
                       | otherwise               = Success $ fst $ ls !! i
        asInt   s      = maybeRead' s (s ++ " is not a valid int")
 
--- enumSelect :: (Show a, Bounded a, Enum a, Eq a, Monad m) => Maybe a -> XHtmlForm m a
+-- | A drop-down for all the options from |a|.
+enumSelect :: (Enum a, Bounded a, Show a, Eq a, Monad m) 
+           => [X.HtmlAttr] -- Optional attributes on the select-box
+           -> Maybe a      -- An optional value
+           -> Form X.Html m a
 enumSelect attrs = select attrs (zip items (map show items)) where items = [minBound..maxBound]
