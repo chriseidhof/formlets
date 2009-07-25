@@ -143,13 +143,11 @@ plug :: (Monad m, Monoid xml) => (xml -> xml1) -> Form xml m a -> Form xml1 m a
 f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
    where plugin (c, x, t) = (c, liftM f x, t)
 
--- The return 
-massInput :: (Monoid xml, {-, Applicative m, Monad m-}
-              Show a -- DEBUG
-          )
-          => [a] -- ^ Nothing gives you a single empty item, Just [] no items and Just ls the specified items
-          -> (Maybe a -> Form xml IO a)
-          -> Form xml IO [a]
+-- | This generates a single (or more) forms for a, and a parser function for a list of a's.
+massInput :: (Applicative m, Monad m, Monoid xml)
+          => [a] -- ^ An empty list renders a default (empty) value
+          -> (Formlet xml m a) -- ^ A formlet for a single a
+          -> Form xml m [a]
 massInput defaults single = Form $ \env -> do
   modify (\x -> 0:0:x)
   st <- get

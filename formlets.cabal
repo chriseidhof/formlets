@@ -1,5 +1,5 @@
 Name:            formlets
-Version:         0.5
+Version:         0.6
 Synopsis:        Formlets implemented in Haskell
 Description:     A modular way to build forms based on applicative functors, as
                  described in:
