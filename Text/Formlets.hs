@@ -1,4 +1,3 @@
-{-# LANGUAGE PatternGuards #-}
 module Text.Formlets ( input', inputM', optionalInput, inputFile, fmapFst, nothingIfNull
                      , check, ensure, ensures
                      , ensureM, checkM, pureM
@@ -7,7 +6,7 @@ module Text.Formlets ( input', inputM', optionalInput, inputFile, fmapFst, nothi
                      , xml, plug
                      , Env , Form
                      , File (..), ContentType (..), FormContentType (..)
-                     , maybeRead, maybeRead', asInteger, tryToEnum, FailingForm (..)
+                     , module Text.Formlets.FormResult
                      )
                      where
 
@@ -16,57 +15,18 @@ import Control.Applicative
 import Control.Applicative.State
 import Data.Maybe (isJust)
 import Data.List (intercalate)
+import Text.Formlets.FormResult
 import qualified Data.ByteString.Lazy as BS
 import qualified Data.Traversable as T
-
--- START OF FAILINGFORM
-data FailingForm a
-  = Success a
-  | Failure [String]
-  | NotAvailable String
-  deriving (Show) -- DEBUG
-
-instance Applicative FailingForm where
-   pure = Success
-   Failure msgs <*> Failure msgs' = Failure (msgs ++ msgs')
-   Success _ <*> Failure msgs' = Failure msgs'
-   Failure msgs' <*> Success _ = Failure msgs'
-   Success f <*> Success x = Success (f x)
-   NotAvailable x <*> _ = NotAvailable x
-   _ <*> NotAvailable x = NotAvailable x
-
-instance Functor FailingForm where
-  fmap f (Success a)      = Success (f a)
-  fmap f (Failure msgs)   = Failure msgs
-  fmap f (NotAvailable x) = NotAvailable x
-
-maybeRead :: Read a => String -> Maybe a
-maybeRead s | [(i, "")] <- readsPrec 0 s = Just i
-            | otherwise = Nothing
-
--- | Tries to read a value. Shows an error message when reading fails.
-maybeRead' :: Read a => String -> String -> FailingForm a
-maybeRead' s msg | Just x <- maybeRead s = Success x
-                 | otherwise = Failure [msg]
-
--- | Tries to read an Integer
-asInteger :: String -> FailingForm Integer
-asInteger s = maybeRead' s (s ++ " is not a valid integer")
-
--- | Tries conversion to an enum
-tryToEnum :: Enum a => Int -> FailingForm a
-tryToEnum x | value <- toEnum x = Success value
-            | otherwise         = Failure ["Conversion error"]
-
--- END OF FAILINGFORM
-
 
 -- Form stuff
 type Env = [(String, Either String File)]
 type FormState = [Integer]
 type Name = String
+type S a = State FormState a
+type Validator a = S (FormResult a)
 data FormContentType = UrlEncoded | MultiPart deriving (Eq, Show, Read)
-newtype Form xml m a = Form { deform :: Env -> State FormState (m (State FormState (FailingForm a)), m xml, FormContentType) }
+newtype Form xml m a = Form { deform :: Env -> S (m (Validator a), m xml, FormContentType) }
 data File = File {content :: BS.ByteString, fileName :: String, contentType :: ContentType} deriving (Eq, Show, Read)
 data ContentType = ContentType { ctType :: String
                                , ctSubtype :: String
@@ -79,7 +39,7 @@ ensure :: Show a
        => (a -> Bool) -- ^ The predicate
        -> String      -- ^ The error message, in case the predicate fails
        -> a           -- ^ The value
-       -> FailingForm a
+       -> FormResult a
 ensure p msg x | p x = Success x
                | otherwise = Failure [msg]
 
@@ -87,7 +47,7 @@ ensureM :: (Monad m, Show a)
        => (a -> m Bool) -- ^ The predicate
        -> String      -- ^ The error message, in case the predicate fails
        -> a           -- ^ The value
-       -> m (FailingForm a)
+       -> m (FormResult a)
 ensureM p msg x = do result <- p x
                      return $ if result then Success x else Failure [msg]
 
@@ -95,7 +55,7 @@ ensureM p msg x = do result <- p x
 ensures :: Show a
         => [(a -> Bool, String)] -- ^ List of predicate functions and error messages, in case the predicate fails
         -> a                     -- ^ The value
-        -> FailingForm a
+        -> FormResult a
 ensures ps x | null errors = Success x
              | otherwise   = Failure errors
     where errors = [ err | (p, err) <- ps, not $ p x ]
@@ -137,13 +97,13 @@ inputFile i = Form $ \env -> mkInput env <$> freshName
 runFormState :: Monad m 
              => Env               -- ^ A previously filled environment (may be empty)
              -> Form xml m a      -- ^ The form
-             -> (m (FailingForm a), m xml, FormContentType)
+             -> (m (FormResult a), m xml, FormContentType)
 runFormState e (Form f) = let (coll, xml, typ) = evalState (f e) initialState
                           in (liftM (flip evalState initialState) coll, xml, typ)
                        where initialState = [0]
 
 -- | Check a condition or convert a result
-check :: (Monad m) => Form xml m a -> (a -> FailingForm b) -> Form xml m b
+check :: (Monad m) => Form xml m a -> (a -> FormResult b) -> Form xml m b
 check (Form frm) f = Form $ fmap checker frm
  where checker = fmap $ fmapFst3 (liftM $ liftM $ f')
        f' (Failure x)  = Failure x
@@ -151,18 +111,11 @@ check (Form frm) f = Form $ fmap checker frm
        f' (Success x)  = f x
 
 -- | Monadically check a condition or convert a result
-checkM :: (Monad m) => Form xml m a -> (a -> m (FailingForm b)) -> Form xml m b
+checkM :: (Monad m) => Form xml m a -> (a -> m (FormResult b)) -> Form xml m b
 checkM (Form frm) f = Form $ \env -> checker f (frm env)
- where --checker = 'a'-- fmap $ fmapFst3 (myFunc f) -- 'a' -- (liftM f')
-
-       checker :: Monad m 
-               => (a -> m (FailingForm b))
-               -> State FormState (m (State FormState (FailingForm a)), m xml, FormContentType)
-               -> State FormState (m (State FormState (FailingForm b)), m xml, FormContentType)
-       checker f frm = do currentState <- get
+ where checker f frm = do currentState <- get
                           frm'         <- frm
                           return $ fmapFst3 (transform f. liftM (flip evalState currentState)) frm'
-       transform :: Monad m => (a -> m (FailingForm b)) -> m (FailingForm a) ->  m (State FormState (FailingForm b))
        transform f source = source >>= \x -> case x of 
                               Success x      -> liftM return (f x)
                               NotAvailable x -> return $ return $ NotAvailable x
@@ -211,21 +164,20 @@ generateXml :: Monad m
             => (Maybe a -> Form xml m a)
             -> Env
             -> a 
-            -> State FormState (m xml)
+            -> S (m xml)
 generateXml form env value = do (_, xml, _) <- (deform $ form $ Just value) env
                                 modify nextItem
                                 return xml
 
-resetCurrentLevel :: State FormState ()
+resetCurrentLevel :: S ()
 resetCurrentLevel = do modify (tail . tail)
                        modify (\x -> 0:0:x)
 
 
-liftCollector :: (Show a) => -- DEBUG
-{-Monad m
-              => -}FormState
-              -> IO (State FormState (FailingForm a))
-              -> IO (State FormState (FailingForm [a]))
+liftCollector :: (Monad m) 
+              => FormState
+              -> m (Validator a)
+              -> m (Validator [a])
 liftCollector st coll = do coll' <- coll
                            let first = evalState coll' st
                                st' = nextItem st
@@ -239,18 +191,12 @@ liftCollector st coll = do coll' <- coll
 
 nextItem st = flip execState st $ modify tail >> freshName >> modify (0:) >> get
 
-combineFailures :: [String] -> State FormState (FailingForm [a]) -> State FormState (FailingForm [a])
+combineFailures :: [String] -> Validator [a] -> Validator [a]
 combineFailures msgs s = do x <- s
                             case x of
                                  Success x -> return $ Failure msgs
                                  Failure f -> return $ Failure (msgs ++ f)
 
--- do repeatCollector coll
---                         -- TODO: fix this, now only reads exactly one value.
---                         return undefined -- return (fmap (fmap pure) first)
-                        
-
--- repeatCollector coll = zipWith undefined (repeat coll) [0..]
                           
 -- | Returns Nothing if the result is the empty String.
 nothingIfNull :: (Monad m, Functor m) => Form xml m String -> Form xml m (Maybe String)
@@ -262,7 +208,7 @@ nothingIfNull frm = nullToMaybe <$> frm
 -- Private methods
 -----------------------------------------------
 
-freshName :: State FormState String
+freshName :: S String
 freshName = do n <- currentName
                modify (changeHead (+1))
                return n
@@ -271,7 +217,7 @@ freshName = do n <- currentName
 changeHead f []     = error "changeHead: there is no head"
 changeHead f (x:xs) = (f x) : xs
 
-currentName :: State FormState String
+currentName :: S String
 currentName = gets $ \xs ->  "fval" ++ (intercalate "." $ reverse $ map show xs)
 
 orT UrlEncoded x = x
@@ -288,11 +234,11 @@ applyF :: (Monad m, Applicative m, Monoid xml) => Form xml m (a -> b) -> Form xm
 (Form f) `applyF` (Form v) = Form $ \env -> combine <$> f env <*> v env
   where combine (v1, xml1, t1) (v2, xml2, t2) = (first v1 v2, (mappend <$> xml1 <*> xml2), t1 `orT` t2)
         first :: Monad m
-              => m (State FormState (FailingForm (a -> b))) 
-              -> m (State FormState (FailingForm (a     ))) 
-              -> m (State FormState (FailingForm (b     ))) 
-        first v1 v2 = do x <- v1 -- x :: (m FailingForm (a -> b))
-                         y <- v2 -- y :: (m FailingForm a)
-                         return $ do x'' <- x -- FailingForm (a -> b)
-                                     y'' <- y -- FailingForm b
+              => m (Validator (a -> b)) 
+              -> m (Validator (a     )) 
+              -> m (Validator (b     )) 
+        first v1 v2 = do x <- v1
+                         y <- v2
+                         return $ do x'' <- x
+                                     y'' <- y
                                      return (x'' <*> y'')
