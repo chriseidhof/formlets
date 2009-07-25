@@ -191,19 +191,35 @@ f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
 massInput :: (Monoid xml, {-, Applicative m, Monad m-}
               Show a -- DEBUG
           )
-          => Maybe [a] -- ^ Nothing gives you a single empty item, Just [] no items and Just ls the specified items
-          -> Form xml IO a
+          => [a] -- ^ Nothing gives you a single empty item, Just [] no items and Just ls the specified items
+          -> (Maybe a -> Form xml IO a)
           -> Form xml IO [a]
 massInput defaults single = Form $ \env -> do
+  modify (\x -> 0:0:x)
+  st <- get
+  (collector, xml, contentType) <- (deform $ single Nothing) env
+  let newCollector = liftCollector st collector 
   case defaults of
-       Nothing -> do 
-                     modify (\x -> 0:0:x)
-                     st <- get
-                     (collector, xml, contentType) <- (deform single) env
-                     let newCollector = liftCollector st collector 
-                     return (newCollector, xml, contentType)
-       Just [] -> error "Not implemented yet."
-       Just ls -> error "Not implemented yet."
+       [] -> return (newCollector, xml, contentType)
+       xs -> do resetCurrentLevel
+                xmls <- mapM (generateXml single env) xs
+                let xmls' = sequence xmls 
+                return (newCollector, liftM mconcat xmls', contentType)
+       --return (newCollector, xml, contentType)--do results <- mapM (\frm -> f frm (deform single)) xs env
+
+generateXml :: Monad m
+            => (Maybe a -> Form xml m a)
+            -> Env
+            -> a 
+            -> State FormState (m xml)
+generateXml form env value = do (_, xml, _) <- (deform $ form $ Just value) env
+                                modify nextItem
+                                return xml
+
+resetCurrentLevel :: State FormState ()
+resetCurrentLevel = do modify (tail . tail)
+                       modify (\x -> 0:0:x)
+
 
 liftCollector :: (Show a) => -- DEBUG
 {-Monad m
@@ -213,14 +229,13 @@ liftCollector :: (Show a) => -- DEBUG
 liftCollector st coll = do coll' <- coll
                            let first = evalState coll' st
                                st' = nextItem st
-                           result <- case first of
-                                 Success x      -> do rest <- liftCollector st' coll
+                               computeRest = liftCollector st' coll
+                           case first of
+                                 Success x      -> do rest <- computeRest
                                                       return (fmap (fmap (x:)) rest)
                                  NotAvailable x -> return (return (Success []))
-                                 Failure x      -> do rest <- liftCollector st' coll
-                                                      let allFailures = combineFailures x rest
-                                                      return allFailures
-                           return result
+                                 Failure x      -> do rest <- computeRest
+                                                      return $ combineFailures x rest
 
 nextItem st = flip execState st $ modify tail >> freshName >> modify (0:) >> get
 

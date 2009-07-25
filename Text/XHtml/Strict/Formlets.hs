@@ -15,7 +15,8 @@ import Data.List (elemIndex)
 -- DEBUGGING: remove me
 type Test a = XHtmlForm IO a
 testForm :: Test [(String, Integer)]
-testForm = massInput Nothing $ (,) <$> input Nothing <*> inputInteger Nothing
+testForm = massInput [("hi", 7),("foo",8)] $ customForm
+customForm xs = (,) <$> input (fmap fst xs) <*> inputInteger (fmap snd xs)
 
 type XHtmlForm m a = Form X.Html m a
 
