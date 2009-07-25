@@ -17,7 +17,7 @@ Maintainer:      Chris Eidhof <ce+hackage@tupil.com>
 Exposed-Modules:   Text.Formlets
                  , Text.XHtml.Strict.Formlets
 Build-Type:      Simple
-Build-Depends:   base, 
+Build-Depends:   base >= 2 && < 5, 
                  haskell98, 
                  mtl, 
                  xhtml, 

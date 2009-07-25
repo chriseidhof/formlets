@@ -10,8 +10,12 @@ import Text.Formlets
 import qualified Text.XHtml.Strict as X
 import Text.XHtml.Strict ((!), (+++), (<<))
 import Control.Applicative
-import Control.Applicative.Error
 import Data.List (elemIndex)
+
+-- DEBUGGING: remove me
+type Test a = XHtmlForm IO a
+testForm :: Test [(String, Integer)]
+testForm = massInput Nothing $ (,) <$> input Nothing <*> inputInteger Nothing
 
 type XHtmlForm m a = Form X.Html m a
 
