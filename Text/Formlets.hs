@@ -63,12 +63,11 @@ ensures ps x | null errors = Success x
 
 -- | Helper function for genereting input components based forms.
 input' :: Monad m => (String -> String -> xml) -> Maybe String -> Form xml m String
-input' i = inputM' (\n v -> return $ i n v)
+input' i = inputM' (\n -> return . i n)
 
 inputM' :: Monad m => (String -> String -> m xml) -> Maybe String -> Form xml m String
 inputM' i defaultValue = Form $ \env -> mkInput env <$> freshName
-   where mkInput env name = (return $ (freshName >>= \name -> return $ fromLeft name $ (lookup name env)),
-                             i name (value name env), UrlEncoded)
+   where mkInput env name = (lookupFreshName fromLeft env, i name (value name env), UrlEncoded)
          value name env = maybe (maybe "" id defaultValue) fromLeft' (lookup name env)
          fromLeft' (Left x) = x
          fromLeft' _        = ""
@@ -76,10 +75,11 @@ inputM' i defaultValue = Form $ \env -> mkInput env <$> freshName
          fromLeft n (Just (Left x)) = FR.Success x
          fromLeft n _               = FR.Failure [n ++ " is a file."]
 
+lookupFreshName f env = return $ (freshName >>= \name -> return $ f name $ (lookup name env)) 
+
 optionalInput :: Monad m => (String -> xml) -> Form xml m (Maybe String)
 optionalInput i = Form $ \env -> mkInput env <$> freshName
-   where mkInput env name = (return (freshName >>= \name -> return $ fromLeft name $ (lookup name env)),
-                             return (i name), UrlEncoded)
+   where mkInput env name = (lookupFreshName fromLeft env, return (i name), UrlEncoded)
          fromLeft n Nothing         = FR.Success Nothing
          fromLeft n (Just (Left x)) = FR.Success (Just x)
          fromLeft n _               = FR.Failure [n ++ " could not be recognized."]
@@ -89,7 +89,7 @@ inputFile :: Monad m
           => (String -> xml)  -- ^ Generates the xml for the file-upload widget based on the name
           -> Form xml m File
 inputFile i = Form $ \env -> mkInput env <$> freshName
-  where  mkInput env name    = (return (freshName >>= \name -> return $ fromRight name (lookup name env)), return (i name), MultiPart)
+  where  mkInput env name    = (lookupFreshName fromRight env, return (i name), MultiPart)
          fromRight n Nothing          = FR.NotAvailable $ n ++ " is not in the data"
          fromRight n (Just (Right x)) = FR.Success x
          fromRight n _                = FR.Failure [n ++ " is not a file"]
@@ -99,17 +99,16 @@ runFormState :: Monad m
              => Env               -- ^ A previously filled environment (may be empty)
              -> Form xml m a      -- ^ The form
              -> (m (Failing a), m xml, FormContentType)
-runFormState e (Form f) = let (coll, xml, typ) = evalState (f e) initialState
-                          in (liftM FR.toE $ liftM (flip evalState initialState) coll, xml, typ)
-                       where initialState = [0]
+runFormState e (Form f) = fmapFst3 (liftM FR.toE . liftM es) (es (f e))
+  where es = flip evalState [0]
 
 -- | Check a condition or convert a result
 check :: (Monad m) => Form xml m a -> (a -> Failing b) -> Form xml m b
 check (Form frm) f = Form $ fmap checker frm
  where checker = fmap $ fmapFst3 (liftM $ liftM $ f')
-       f' (FR.Failure x)  = FR.Failure x
+       f' (FR.Failure x)       = FR.Failure x
        f' (FR.NotAvailable x)  = FR.NotAvailable x
-       f' (FR.Success x)  = FR.fromE $ f x
+       f' (FR.Success x)       = FR.fromE $ f x
 
 -- | Monadically check a condition or convert a result
 checkM :: (Monad m) => Form xml m a -> (a -> m (Failing b)) -> Form xml m b
@@ -159,13 +158,8 @@ massInput defaults single = Form $ \env -> do
                 xmls <- mapM (generateXml single env) xs
                 let xmls' = sequence xmls 
                 return (newCollector, liftM mconcat xmls', contentType)
-       --return (newCollector, xml, contentType)--do results <- mapM (\frm -> f frm (deform single)) xs env
 
-generateXml :: Monad m
-            => (Maybe a -> Form xml m a)
-            -> Env
-            -> a 
-            -> S (m xml)
+generateXml :: Monad m => (Maybe a -> Form xml m a) -> Env -> a -> S (m xml)
 generateXml form env value = do (_, xml, _) <- (deform $ form $ Just value) env
                                 modify nextItem
                                 return xml
@@ -175,13 +169,10 @@ resetCurrentLevel = do modify (tail . tail)
                        modify (\x -> 0:0:x)
 
 
-liftCollector :: (Monad m) 
-              => FormState
-              -> m (Validator a)
-              -> m (Validator [a])
+liftCollector :: (Monad m) => FormState -> m (Validator a) -> m (Validator [a])
 liftCollector st coll = do coll' <- coll
-                           let first = evalState coll' st
-                               st' = nextItem st
+                           let first       = evalState coll' st
+                               st'         = nextItem st
                                computeRest = liftCollector st' coll
                            case first of
                                  FR.Success x      -> do rest <- computeRest
