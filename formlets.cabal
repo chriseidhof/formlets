@@ -15,6 +15,7 @@ Copyright:       (c) Jeremy Yallop / Tupil
 Author:          Jeremy Yallop / Chris Eidhof
 Maintainer:      Chris Eidhof <ce+hackage@tupil.com>
 Exposed-Modules:   Text.Formlets
+                 , Text.Formlets.MassInput
                  , Text.XHtml.Strict.Formlets
 Other-Modules:   Text.Formlets.FormResult
 Build-Type:      Simple
