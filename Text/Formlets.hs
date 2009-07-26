@@ -154,12 +154,14 @@ massInput single defaults = Form $ \env -> do
   st <- get
   (collector, xml, contentType) <- (deform $ single Nothing) env
   let newCollector = liftCollector st collector 
-  case maybe [] id defaults of
+  x <- case maybe [] id defaults of
        [] -> return (newCollector, xml, contentType)
        xs -> do resetCurrentLevel
                 xmls <- mapM (generateXml single env) xs
                 let xmls' = sequence xmls 
                 return (newCollector, liftM mconcat xmls', contentType)
+  modify (tail.tail)
+  return x
 
 generateXml :: Monad m => (Maybe a -> Form xml m a) -> Env -> a -> S (m xml)
 generateXml form env value = do (_, xml, _) <- (deform $ form $ Just value) env
@@ -211,7 +213,7 @@ changeHead f []     = error "changeHead: there is no head"
 changeHead f (x:xs) = (f x) : xs
 
 currentName :: S String
-currentName = gets $ \xs ->  "fval" ++ (intercalate "." $ reverse $ map show xs)
+currentName = gets $ \xs ->  "fval[" ++ (intercalate "." $ reverse $ map show xs) ++ "]"
 
 orT UrlEncoded x = x
 orT x UrlEncoded = x
