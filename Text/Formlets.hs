@@ -148,14 +148,13 @@ plug' transformer formlet value = plug transformer (formlet value)
 -- | This generates a single (or more) forms for a, and a parser function for a list of a's.
 massInput :: (Applicative m, Monad m, Monoid xml)
           => (Formlet xml m a) -- ^ A formlet for a single a
-          -> [a] -- ^ An empty list renders a default (empty) value
-          -> Form xml m [a]
+          -> Formlet xml m [a]
 massInput single defaults = Form $ \env -> do
   modify (\x -> 0:0:x)
   st <- get
   (collector, xml, contentType) <- (deform $ single Nothing) env
   let newCollector = liftCollector st collector 
-  case defaults of
+  case maybe [] id defaults of
        [] -> return (newCollector, xml, contentType)
        xs -> do resetCurrentLevel
                 xmls <- mapM (generateXml single env) xs
