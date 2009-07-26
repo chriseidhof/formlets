@@ -2,7 +2,7 @@ module Text.XHtml.Strict.Formlets ( input, textarea, password, file, checkbox
                                   , hidden, inputInteger, radio, enumRadio
                                   , label
                                   , selectXHtml, selectRaw, select, enumSelect
-                                  , XHtmlForm
+                                  , XHtmlForm, XHtmlFormlet
                                   , module Text.Formlets
                                   ) where
 
