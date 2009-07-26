@@ -144,10 +144,10 @@ f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
 
 -- | This generates a single (or more) forms for a, and a parser function for a list of a's.
 massInput :: (Applicative m, Monad m, Monoid xml)
-          => [a] -- ^ An empty list renders a default (empty) value
-          -> (Formlet xml m a) -- ^ A formlet for a single a
+          => (Formlet xml m a) -- ^ A formlet for a single a
+          -> [a] -- ^ An empty list renders a default (empty) value
           -> Form xml m [a]
-massInput defaults single = Form $ \env -> do
+massInput single defaults = Form $ \env -> do
   modify (\x -> 0:0:x)
   st <- get
   (collector, xml, contentType) <- (deform $ single Nothing) env
@@ -171,10 +171,9 @@ resetCurrentLevel = do modify (tail . tail)
 
 liftCollector :: (Monad m) => FormState -> m (Validator a) -> m (Validator [a])
 liftCollector st coll = do coll' <- coll
-                           let first       = evalState coll' st
-                               st'         = nextItem st
+                           let st'         = nextItem st
                                computeRest = liftCollector st' coll
-                           case first of
+                           case evalState coll' st of
                                  FR.Success x      -> do rest <- computeRest
                                                          return (fmap (fmap (x:)) rest)
                                  FR.NotAvailable x -> return (return (FR.Success []))
