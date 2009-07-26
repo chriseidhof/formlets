@@ -3,7 +3,7 @@ module Text.Formlets ( input', inputM', optionalInput, inputFile, fmapFst, nothi
                      , ensureM, checkM, pureM
                      , runFormState 
                      , massInput
-                     , xml, plug
+                     , xml, plug, plug'
                      , Env , Form , Formlet
                      , File (..), ContentType (..), FormContentType (..)
                      )
@@ -141,6 +141,9 @@ xml x = Form $ \env -> pure (return (return $ FR.Success ()), return x, UrlEncod
 plug :: (Monad m, Monoid xml) => (xml -> xml1) -> Form xml m a -> Form xml1 m a
 f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
    where plugin (c, x, t) = (c, liftM f x, t)
+
+plug' :: (Monad m, Monoid xml1) => (xml1 -> xml2) -> Formlet xml1 m a -> Formlet xml2 m a
+plug' transformer formlet value = plug transformer (formlet value)
 
 -- | This generates a single (or more) forms for a, and a parser function for a list of a's.
 massInput :: (Applicative m, Monad m, Monoid xml)

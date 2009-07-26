@@ -6,7 +6,8 @@ module Text.XHtml.Strict.Formlets ( input, textarea, password, file, checkbox
                                   , module Text.Formlets
                                   ) where
 
-import Text.Formlets
+import Text.Formlets hiding (massInput)
+import qualified Text.Formlets as F
 import qualified Text.XHtml.Strict as X
 import Text.XHtml.Strict ((!), (+++), (<<))
 import Control.Applicative
@@ -19,6 +20,7 @@ type XHtmlFormlet m a = Formlet X.Html m a
 -- | An input field with an optional value
 input :: Monad m => XHtmlFormlet m String
 input = input' (\n v -> X.textfield n ! [X.value v])
+
 
 -- | A textarea with optional rows and columns, and an optional value
 textarea :: Monad m => Maybe Int -> Maybe Int -> XHtmlFormlet m String
