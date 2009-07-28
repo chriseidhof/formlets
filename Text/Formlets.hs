@@ -153,9 +153,14 @@ massInput single defaults = Form $ \env -> do
   modify (\x -> 0:0:x)
   st <- get
   (collector, xml, contentType) <- (deform $ single Nothing) env
+  resetCurrentLevel
+  listXml <- generateListXml (single Nothing) env
   let newCollector = liftCollector st collector 
+      xml' = case env of
+               [] -> xml
+               _  -> listXml
   x <- case maybe [] id defaults of
-       [] -> return (newCollector, xml, contentType)
+       [] -> return (newCollector, xml', contentType)
        xs -> do resetCurrentLevel
                 xmls <- mapM (generateXml single env) xs
                 let xmls' = sequence xmls 
@@ -172,6 +177,14 @@ resetCurrentLevel :: S ()
 resetCurrentLevel = do modify (tail . tail)
                        modify (\x -> 0:0:x)
 
+generateListXml :: (Applicative m, Monad m, Monoid xml) => Form xml m a -> Env -> S (m xml)
+generateListXml form env = do n <- currentName
+                              case lookup n env of
+                                Nothing -> return $ return mempty
+                                Just _  -> do (_, xml, _) <- (deform form) env
+                                              modify nextItem
+                                              rest <- generateListXml form env
+                                              return $ mappend <$> xml <*> rest
 
 liftCollector :: (Monad m) => FormState -> m (Validator a) -> m (Validator [a])
 liftCollector st coll = do coll' <- coll
