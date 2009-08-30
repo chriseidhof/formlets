@@ -114,14 +114,31 @@ check (Form frm) f = Form $ fmap checker frm
 checkM :: (Monad m) => Form xml m a -> (a -> m (Failing b)) -> Form xml m b
 checkM (Form frm) f = Form $ \env -> checker f (frm env)
  where checker f frm = do currentState <- get
-                          frm'         <- frm
-                          return $ fmapFst3 (transform f. liftM (flip evalState currentState)) frm'
-       transform f source = source >>= \x -> case x of 
-                              FR.Success x      -> liftM return (convert f x)
-                              FR.NotAvailable x -> return . return $ FR.NotAvailable x
-                              FR.Failure x      -> return . return $ FR.Failure x
+                          (validator, xml, ct) <- frm
+                          let validator' = transform f validator currentState
+                          return (validator', xml, ct)
+                          --return x
+
+       transform :: Monad m => (a -> m (Failing b)) -> m (Validator a) -> FormState -> m (Validator b)
+       transform f source st = x' (x f) source
+        where x   :: Monad m => (a -> m (Failing b)) -> a -> m (Validator b)
+              x f = fmap (liftM (return . FR.fromE)) f
+              x'  :: Monad m => (a -> m (Validator b)) -> m (Validator a) -> m (Validator b)
+              x' f a = do a' <- a
+                          let (a'', st') = runState a' st
+                          val <- combine f a''
+                          return (changeState st' val)
+              changeState :: st -> State st a -> State st a
+              changeState st' mComp = do result <- mComp
+                                         put st'
+                                         return result
        convert :: Monad m => (a -> m (Failing b)) -> (a -> m (FR.FormResult b))
        convert f = fmap (liftM FR.fromE) f
+       combine :: Monad m => (a -> m (Validator b)) -> FR.FormResult a -> m (Validator b)
+       combine f x = case x of
+         (FR.Success x)      -> f x
+         (FR.NotAvailable x) -> return . return $ FR.NotAvailable x
+         (FR.Failure x)      -> return . return $ FR.Failure x
 
 instance (Functor m, Monad m) => Functor (Form xml m) where
   fmap f (Form a) = Form $ \env -> (fmap . fmapFst3 . liftM . liftM . fmap) f (a env)
