@@ -120,14 +120,14 @@ checkM (Form frm) f = Form $ \env -> checker f (frm env)
                           --return x
 
        transform :: Monad m => (a -> m (Failing b)) -> m (Validator a) -> FormState -> m (Validator b)
-       transform f source st = x' (x f) source
-        where x   :: Monad m => (a -> m (Failing b)) -> a -> m (Validator b)
-              x f = fmap (liftM (return . FR.fromE)) f
-              x'  :: Monad m => (a -> m (Validator b)) -> m (Validator a) -> m (Validator b)
-              x' f a = do a' <- a
-                          let (a'', st') = runState a' st
-                          val <- combine f a''
-                          return (changeState st' val)
+       transform f source st = transform' (makeValidator f) source
+        where makeValidator   :: Monad m => (a -> m (Failing b)) -> a -> m (Validator b)
+              makeValidator f = fmap (liftM (return . FR.fromE)) f
+              transform'  :: Monad m => (a -> m (Validator b)) -> m (Validator a) -> m (Validator b)
+              transform' f a = do a' <- a
+                                  let (a'', st') = runState a' st
+                                  val <- combine f a''
+                                  return (changeState st' val)
               changeState :: st -> State st a -> State st a
               changeState st' mComp = do result <- mComp
                                          put st'
