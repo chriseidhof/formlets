@@ -41,6 +41,9 @@ jsMassInputCode = unlines
   ,"    }"
   ,"  ));"
   ,""
+-- Uncomment the following line if you want the newly added fields to
+-- be empty.
+--  ,"  newItem.children('input').attr('value','');"
   ,"  newItem.appendTo(item.parent());"
   ,"}"
   ,"function removeItem(button) {"
