@@ -27,7 +27,7 @@ type Name = String
 type S a = State FormState a
 type Validator a = S (FR.FormResult a)
 data FormContentType = UrlEncoded | MultiPart deriving (Eq, Show, Read)
-newtype Form xml m a = Form { deform :: Env -> S (m (Validator a), m xml, FormContentType) }
+newtype Form xml m a = Form { deform :: Env -> S (m (Validator a), xml, FormContentType) }
 data File = File {content :: BS.ByteString, fileName :: String, contentType :: ContentType} deriving (Eq, Show, Read)
 data ContentType = ContentType { ctType :: String
                                , ctSubtype :: String
@@ -63,9 +63,9 @@ ensures ps x | null errors = Success x
 
 -- | Helper function for genereting input components based forms.
 input' :: Monad m => (String -> String -> xml) -> Maybe String -> Form xml m String
-input' i = inputM' (\n -> return . i n)
+input' i = inputM' (\n -> i n)
 
-inputM' :: Monad m => (String -> String -> m xml) -> Maybe String -> Form xml m String
+inputM' :: Monad m => (String -> String -> xml) -> Maybe String -> Form xml m String
 inputM' i defaultValue = Form $ \env -> mkInput env <$> freshName
    where mkInput env name = (lookupFreshName fromLeft env, i name (value name env), UrlEncoded)
          value name env = maybe (maybe "" id defaultValue) fromLeft' (lookup name env)
@@ -79,7 +79,7 @@ lookupFreshName f env = return $ (freshName >>= \name -> return $ f name $ (look
 
 optionalInput :: Monad m => (String -> xml) -> Form xml m (Maybe String)
 optionalInput i = Form $ \env -> mkInput env <$> freshName
-   where mkInput env name = (lookupFreshName fromLeft env, return (i name), UrlEncoded)
+   where mkInput env name = (lookupFreshName fromLeft env, i name, UrlEncoded)
          fromLeft n Nothing         = FR.Success Nothing
          fromLeft n (Just (Left x)) = FR.Success (Just x)
          fromLeft n _               = FR.Failure [n ++ " could not be recognized."]
@@ -89,7 +89,7 @@ inputFile :: Monad m
           => (String -> xml)  -- ^ Generates the xml for the file-upload widget based on the name
           -> Form xml m File
 inputFile i = Form $ \env -> mkInput env <$> freshName
-  where  mkInput env name    = (lookupFreshName fromRight env, return (i name), MultiPart)
+  where  mkInput env name    = (lookupFreshName fromRight env, i name, MultiPart)
          fromRight n Nothing          = FR.NotAvailable $ n ++ " is not in the data"
          fromRight n (Just (Right x)) = FR.Success x
          fromRight n _                = FR.Failure [n ++ " is not a file"]
@@ -98,7 +98,7 @@ inputFile i = Form $ \env -> mkInput env <$> freshName
 runFormState :: Monad m 
              => Env               -- ^ A previously filled environment (may be empty)
              -> Form xml m a      -- ^ The form
-             -> (m (Failing a), m xml, FormContentType)
+             -> (m (Failing a), xml, FormContentType)
 runFormState e (Form f) = fmapFst3 (liftM FR.toE . liftM es) (es (f e))
   where es = flip evalState [0]
 
@@ -152,12 +152,12 @@ instance (Monad m, Applicative m, Monoid xml) => Applicative (Form xml m) where
 
 -- | Pure xml
 xml :: Monad m => xml -> Form xml m ()
-xml x = Form $ \env -> pure (return (return $ FR.Success ()), return x, UrlEncoded)
+xml x = Form $ \env -> pure (return (return $ FR.Success ()), x, UrlEncoded)
 
 -- | Transform the XML component
 plug :: (Monad m, Monoid xml) => (xml -> xml1) -> Form xml m a -> Form xml1 m a
 f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
-   where plugin (c, x, t) = (c, liftM f x, t)
+   where plugin (c, x, t) = (c, f x, t)
 
 plug' :: (Monad m, Monoid xml1) => (xml1 -> xml2) -> Formlet xml1 m a -> Formlet xml2 m a
 plug' transformer formlet value = plug transformer (formlet value)
@@ -180,12 +180,11 @@ massInput single defaults = Form $ \env -> do
        [] -> return (newCollector, xml', contentType)
        xs -> do resetCurrentLevel
                 xmls <- mapM (generateXml single env) xs
-                let xmls' = sequence xmls 
-                return (newCollector, liftM mconcat xmls', contentType)
+                return (newCollector, mconcat xmls, contentType)
   modify (tail.tail)
   return x
 
-generateXml :: Monad m => (Maybe a -> Form xml m a) -> Env -> a -> S (m xml)
+generateXml :: Monad m => (Maybe a -> Form xml m a) -> Env -> a -> S xml
 generateXml form env value = do (_, xml, _) <- (deform $ form $ Just value) env
                                 modify nextItem
                                 return xml
@@ -194,14 +193,14 @@ resetCurrentLevel :: S ()
 resetCurrentLevel = do modify (tail . tail)
                        modify (\x -> 0:0:x)
 
-generateListXml :: (Applicative m, Monad m, Monoid xml) => Form xml m a -> Env -> S (m xml)
+generateListXml :: (Applicative m, Monad m, Monoid xml) => Form xml m a -> Env -> S xml
 generateListXml form env = do n <- currentName
                               case lookup n env of
-                                Nothing -> return $ return mempty
+                                Nothing -> return mempty
                                 Just _  -> do (_, xml, _) <- (deform form) env
                                               modify nextItem
                                               rest <- generateListXml form env
-                                              return $ mappend <$> xml <*> rest
+                                              return $ mappend xml rest
 
 liftCollector :: (Monad m) => FormState -> m (Validator a) -> m (Validator [a])
 liftCollector st coll = do coll' <- coll
@@ -250,14 +249,14 @@ orT x UrlEncoded = x
 orT x y          = x
 
 pureF :: (Monad m, Monoid xml) => a -> Form xml m a
-pureF v = Form $ \env -> pure (return (return $ FR.Success v), return mempty, UrlEncoded)
+pureF v = Form $ \env -> pure (return (return $ FR.Success v), mempty, UrlEncoded)
 
 pureM :: (Monad m, Monoid xml) => m a -> Form xml m a
-pureM v = Form $ \env -> pure (liftM (return . FR.Success) v, return mempty, UrlEncoded)
+pureM v = Form $ \env -> pure (liftM (return . FR.Success) v, mempty, UrlEncoded)
 
 applyF :: (Monad m, Applicative m, Monoid xml) => Form xml m (a -> b) -> Form xml m a -> Form xml m b
 (Form f) `applyF` (Form v) = Form $ \env -> combine <$> f env <*> v env
-  where combine (v1, xml1, t1) (v2, xml2, t2) = (first v1 v2, (mappend <$> xml1 <*> xml2), t1 `orT` t2)
+  where combine (v1, xml1, t1) (v2, xml2, t2) = (first v1 v2, (mappend xml1 xml2), t1 `orT` t2)
         first :: Monad m
               => m (Validator (a -> b)) 
               -> m (Validator (a     )) 
