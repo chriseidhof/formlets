@@ -155,11 +155,11 @@ xml :: Monad m => xml -> Form xml m ()
 xml x = Form $ \env -> pure (return (return $ FR.Success ()), x, UrlEncoded)
 
 -- | Transform the XML component
-plug :: (Monad m, Monoid xml) => (xml -> xml1) -> Form xml m a -> Form xml1 m a
+plug :: (xml -> xml1) -> Form xml m a -> Form xml1 m a
 f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
    where plugin (c, x, t) = (c, f x, t)
 
-plug' :: (Monad m, Monoid xml1) => (xml1 -> xml2) -> Formlet xml1 m a -> Formlet xml2 m a
+plug' :: (xml1 -> xml2) -> Formlet xml1 m a -> Formlet xml2 m a
 plug' transformer formlet value = plug transformer (formlet value)
 
 -- | This generates a single (or more) forms for a, and a parser function for a list of a's.
