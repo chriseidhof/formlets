@@ -1,3 +1,4 @@
+{-# LANGUAGE DeriveDataTypeable #-}
 module Text.Formlets ( input', inputM', optionalInput, inputFile, fmapFst, nothingIfNull
                      , check, ensure, ensures
                      , ensureM, checkM, pureM
@@ -9,6 +10,7 @@ module Text.Formlets ( input', inputM', optionalInput, inputFile, fmapFst, nothi
                      )
                      where
 
+import Data.Generics
 import Data.Monoid
 import Control.Applicative
 import Control.Applicative.Error
@@ -28,12 +30,12 @@ type S a = State FormState a
 type Validator a = S (FR.FormResult a)
 data FormContentType = UrlEncoded | MultiPart deriving (Eq, Show, Read)
 newtype Form xml m a = Form { deform :: Env -> S (m (Validator a), xml, FormContentType) }
-data File = File {content :: BS.ByteString, fileName :: String, contentType :: ContentType} deriving (Eq, Show, Read)
+data File = File {content :: BS.ByteString, fileName :: String, contentType :: ContentType} deriving (Eq, Show, Read, Data, Typeable)
 data ContentType = ContentType { ctType :: String
                                , ctSubtype :: String
                                , ctParameters :: [(String, String)]
                                }
-                               deriving (Eq, Show, Read)
+                               deriving (Eq, Show, Read, Data, Typeable)
 
 -- | Apply a predicate to a value and return FR.Success or FR.Failure as appropriate
 ensure :: Show a 
