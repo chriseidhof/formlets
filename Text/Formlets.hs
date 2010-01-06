@@ -37,6 +37,17 @@ data ContentType = ContentType { ctType :: String
                                , ctParameters :: [(String, String)]
                                }
                                deriving (Eq, Show, Read, Data, Typeable)
+                                        
+data Rect = Rect {rectCols :: Int, rectRows :: Int}
+          deriving (Eq, Ord, Show, Read, Data, Typeable)
+
+-- |Choose a good number of rows for a textarea input.  Uses the
+-- number of newlines in the string and the number of lines that
+-- are too long for the desired width.
+stringRect :: Int -> String -> Rect
+stringRect cols s =
+    Rect {rectCols = cols,
+          rectRows = foldr (+) 0 (map (\ line -> 1 + (length line) `div` cols) (lines s))}
 
 -- | Apply a predicate to a value and return FR.Success or FR.Failure as appropriate
 ensure :: Show a 
