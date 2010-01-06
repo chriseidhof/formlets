@@ -23,14 +23,16 @@ Flag base4
     Description: Choose the even newer, even smaller, split-up base package.
 
 Library
-  Build-Depends:   base >= 2 && < 4, 
-                   haskell98, 
+  Build-Depends:   haskell98, 
                    mtl,
                    xhtml, 
                    applicative-extras >= 0.1.3, 
                    bytestring
   if flag(base4)
-    Build-Depends:     base >= 4 && < 5, syb
+    Build-Depends: base >= 4 && < 5, syb
+  else
+    Build-Depends: base >= 2 && < 4
+                                      
   Exposed-Modules:   Text.Formlets
                    , Text.Formlets.MassInput
                    , Text.XHtml.Strict.Formlets
