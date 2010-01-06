@@ -1,5 +1,5 @@
-{-# LANGUAGE DeriveDataTypeable #-}
-module Text.Formlets ( input', inputM', optionalInput, generalInput, inputFile, fmapFst, nothingIfNull
+{-# LANGUAGE DeriveDataTypeable, ScopedTypeVariables #-}
+module Text.Formlets ( input', inputM', optionalInput, generalInput, generalInputMulti, inputFile, fmapFst, nothingIfNull
                      , check, ensure, ensures
                      , ensureM, checkM, pureM
                      , runFormState 
@@ -11,6 +11,7 @@ module Text.Formlets ( input', inputM', optionalInput, generalInput, inputFile, 
                      where
 
 import Data.Generics
+import Data.Either (partitionEithers)
 import Data.Monoid
 import Control.Applicative
 import Control.Applicative.Error
@@ -65,7 +66,7 @@ ensures ps x | null errors = Success x
 
 -- | Helper function for genereting input components based forms.
 --          
--- see also 'optionalInput' and 'generalInput'
+-- see also 'optionalInput', 'generalInput', and 'generalInputMulti'
 input' :: Monad m 
        => (String -> String -> xml) -- ^ function which takes the control name, the initial value, and returns the control markup
        -> Maybe String -- ^ optional default value
@@ -87,7 +88,7 @@ inputM' = input'
 --
 -- <http://www.w3.org/TR/html401/interact/forms.html#successful-controls>
 --
--- see also 'input'' and 'generalInput'
+-- see also 'input'', 'generalInput', and 'generalInputMulti'
 optionalInput :: Monad m 
               => (String -> xml) -- ^ function which takes the form name and produces the control markup
               -> Form xml m (Maybe String)
@@ -100,10 +101,9 @@ optionalInput i = generalInput (\n _ -> i n)
 lookupFreshName :: (Monad m) => (String -> Maybe (Either String File) -> a) -> Env -> m (State FormState a)
 lookupFreshName f env = return $ (freshName >>= \name -> return $ f name $ (lookup name env)) 
 
--- |a function for generating form control
+-- |generate a form control
 -- 
--- see also 'input'' and 'optionalInput', which are implemented using
--- this function, but provide more specialized functionality.
+-- see also 'input'', 'optionalInput', 'generalInputMulti'.
 generalInput :: Monad m =>
                 (String -> Maybe String -> xml) -- ^ function which takes the control name, an initial value if one was found in the environment and returns control markup
              -> Form xml m (Maybe String)
@@ -124,6 +124,39 @@ generalInput i = Form $ \env -> mkInput env <$> freshName
          fromLeft n Nothing          = FR.NotAvailable $ n ++ " is not in the data"
          fromLeft n (Just (Left x))  = FR.Success (Just x)
          fromLeft n (Just (Right _)) = FR.Failure [n ++ " is a file, but should not have been."]
+
+-- |generate a form control which can return multiple values
+--
+-- Useful for controls such as checkboxes and multiple select .
+--
+-- see also 'input'', 'optionalInput', 'generalInput'.
+generalInputMulti :: forall m xml. Monad m =>
+                (String -> [String] -> xml)
+             -> Form xml m [String]
+generalInputMulti i = Form $ \env -> mkInput env <$> freshName
+   where mkInput :: Env -> String -> (m (Validator [String]), xml, FormContentType)
+         mkInput env name = (return (result env),
+                             i name (value name env), UrlEncoded)
+         -- A function to obtain the initial value used to compute the
+         -- representation.  The environment is the one passed to
+         -- runFormState.  It typically reflects the initial value of
+         -- the datatype which the form is meanto to represent.
+         value :: String -> Env -> [String]
+         value name env =
+             case partitionEithers $ lookups name env of
+               (xs,[]) -> xs
+               _ -> error $ name ++ " is a file."
+         -- A function to obtain the form's return value from the
+         -- environment returned after the form is run.
+         result :: Env -> Validator [String]
+         result env =
+           do name <- freshName
+              return $ case partitionEithers $ lookups name env of
+                ([],[]) -> FR.NotAvailable $ name ++ " is not in the data."
+                (xs,[]) -> FR.Success xs
+                _ -> FR.Failure [name ++ " is a file."]
+         lookups :: (Eq a) => a -> [(a, b)] -> [b]
+         lookups k = map snd . filter ((k ==) . fst)
 
 -- | A File input widget.
 inputFile :: Monad m 
