@@ -1,5 +1,5 @@
 {-# LANGUAGE DeriveDataTypeable #-}
-module Text.Formlets ( input', inputM', optionalInput, inputFile, fmapFst, nothingIfNull
+module Text.Formlets ( input', inputM', optionalInput, generalInput, inputFile, fmapFst, nothingIfNull
                      , check, ensure, ensures
                      , ensureM, checkM, pureM
                      , runFormState 
@@ -15,7 +15,7 @@ import Data.Monoid
 import Control.Applicative
 import Control.Applicative.Error
 import Control.Applicative.State
-import Data.Maybe (isJust)
+import Data.Maybe (isJust, fromMaybe)
 import Data.List (intercalate)
 import qualified Text.Formlets.FormResult as FR
 import qualified Data.ByteString.Lazy as BS
@@ -64,27 +64,66 @@ ensures ps x | null errors = Success x
     where errors = [ err | (p, err) <- ps, not $ p x ]
 
 -- | Helper function for genereting input components based forms.
-input' :: Monad m => (String -> String -> xml) -> Maybe String -> Form xml m String
-input' i = inputM' (\n -> i n)
+--          
+-- see also 'optionalInput' and 'generalInput'
+input' :: Monad m 
+       => (String -> String -> xml) -- ^ function which takes the control name, the initial value, and returns the control markup
+       -> Maybe String -- ^ optional default value
+       -> Form xml m String
+input' i defaultValue = generalInput i' `check` maybe (Failure ["not in the data"]) Success
+   where i' n v = i n (fromMaybe (fromMaybe "" defaultValue) v)
 
+{-# DEPRECATED inputM' "You can just use input'"#-}
+-- |deprecated. See 'input''
 inputM' :: Monad m => (String -> String -> xml) -> Maybe String -> Form xml m String
-inputM' i defaultValue = Form $ \env -> mkInput env <$> freshName
-   where mkInput env name = (lookupFreshName fromLeft env, i name (value name env), UrlEncoded)
-         value name env = maybe (maybe "" id defaultValue) fromLeft' (lookup name env)
-         fromLeft' (Left x) = x
-         fromLeft' _        = ""
-         fromLeft n Nothing         = FR.NotAvailable $ n ++ " is not in the data"
-         fromLeft n (Just (Left x)) = FR.Success x
-         fromLeft n _               = FR.Failure [n ++ " is a file."]
+inputM' = input'
 
+-- | Create a form control which is not required to be successful
+--
+-- There is no way to provide a default value, because that would
+-- result in the control being successful.
+-- 
+-- For more information on successful controls see:
+--
+-- <http://www.w3.org/TR/html401/interact/forms.html#successful-controls>
+--
+-- see also 'input'' and 'generalInput'
+optionalInput :: Monad m 
+              => (String -> xml) -- ^ function which takes the form name and produces the control markup
+              -> Form xml m (Maybe String)
+optionalInput i = generalInput (\n _ -> i n)
+
+-- a combination of lookup and freshName. 
+--  1. generate a fresh name
+--  2. lookup that name in the environment (returns a Maybe value)
+--  3. pass the name and the Maybe value to the function 'f', which returns a value of type 'a'
+lookupFreshName :: (Monad m) => (String -> Maybe (Either String File) -> a) -> Env -> m (State FormState a)
 lookupFreshName f env = return $ (freshName >>= \name -> return $ f name $ (lookup name env)) 
 
-optionalInput :: Monad m => (String -> xml) -> Form xml m (Maybe String)
-optionalInput i = Form $ \env -> mkInput env <$> freshName
-   where mkInput env name = (lookupFreshName fromLeft env, i name, UrlEncoded)
-         fromLeft n Nothing         = FR.Success Nothing
-         fromLeft n (Just (Left x)) = FR.Success (Just x)
-         fromLeft n _               = FR.Failure [n ++ " could not be recognized."]
+-- |a function for generating form control
+-- 
+-- see also 'input'' and 'optionalInput', which are implemented using
+-- this function, but provide more specialized functionality.
+generalInput :: Monad m =>
+                (String -> Maybe String -> xml) -- ^ function which takes the control name, an initial value if one was found in the environment and returns control markup
+             -> Form xml m (Maybe String)
+generalInput i = Form $ \env -> mkInput env <$> freshName
+   where mkInput env name = (lookupFreshName fromLeft env, -- return . result name,
+                             i name (value name env), UrlEncoded)
+         -- A function to obtain the initial value used to compute the
+         -- representation.  The environment is the one passed to
+         -- runFormState.  It typically reflects the initial value of
+         -- the datatype which the form is meant to represent.
+         value name env =
+             case lookup name env of
+               Just (Left x) -> Just x
+               Just (Right _) -> error $ name ++ " is a file."
+               Nothing -> Nothing
+         -- A function to obtain the form's return value from the
+         -- environment returned after the form is run.
+         fromLeft n Nothing          = FR.NotAvailable $ n ++ " is not in the data"
+         fromLeft n (Just (Left x))  = FR.Success (Just x)
+         fromLeft n (Just (Right _)) = FR.Failure [n ++ " is a file, but should not have been."]
 
 -- | A File input widget.
 inputFile :: Monad m 
