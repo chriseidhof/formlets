@@ -4,7 +4,7 @@ module Text.Formlets ( input', inputM', optionalInput, generalInput, generalInpu
                      , ensureM, checkM, pureM
                      , runFormState 
                      , massInput
-                     , xml, plug, plug'
+                     , xml, plug, plug2, plug'
                      , Env , Form , Formlet
                      , File (..), ContentType (..), FormContentType (..)
                      , Rect, stringRect
@@ -153,11 +153,6 @@ generalInput' i fromLeft = Form $ \env -> mkInput env <$> freshName
                Nothing -> Nothing
          -- A function to obtain the form's return value from the
          -- environment returned after the form is run.
-               {-
-         fromLeft n Nothing          = FR.NotAvailable $ n ++ " is not in the data"
-         fromLeft n (Just (Left x))  = FR.Success (Just x)
-         fromLeft n (Just (Right _)) = FR.Failure [n ++ " is a file, but should not have been."]
--}
 
 -- |generate a form control which can return multiple values
 --
@@ -266,6 +261,26 @@ xml x = Form $ \env -> pure (return (return $ FR.Success ()), x, UrlEncoded)
 plug :: (xml -> xml1) -> Form xml m a -> Form xml1 m a
 f `plug` (Form m) = Form $ \env -> pure plugin <*> m env
    where plugin (c, x, t) = (c, f x, t)
+
+-- | Combine the XML components of two forms using f, and combine the
+-- values using g.
+plug2 :: (Monad m) => (xml -> xml1 -> xml2) -> (a -> b -> Failing c) -> Form xml m a -> Form xml1 m b -> Form xml2 m c
+plug2 f g (Form m) (Form n) =
+  Form $ \env -> plugin <$> m env <*> n env
+    where
+      plugin (c1, x1, t1) (c2, x2, t2) = (combineCollectors c1 c2, f x1 x2, t2)
+--      combineCollectors :: (Monad m) => m (State FormState (FR.FormResult a)) -> m (State FormState (FR.FormResult b)) -> m (State FormState (FR.FormResult c))
+      combineCollectors c1 c2 =
+              do a' <- c1
+                 b' <- c2
+                 return $ combiner <$> a' <*> b'
+--       combiner :: (FR.FormResult a) -> (FR.FormResult b) -> (FR.FormResult c)
+      combiner (FR.Failure a)        (FR.Failure b)        = FR.Failure (a ++ b)
+      combiner (FR.Failure a)        _                     = FR.Failure a
+      combiner _                     (FR.Failure b)        = FR.Failure b
+      combiner (FR.NotAvailable str) _                     = FR.NotAvailable str
+      combiner _                     (FR.NotAvailable str) = FR.NotAvailable str
+      combiner (FR.Success a)        (FR.Success b)        = FR.fromE (g a b)
 
 plug' :: (xml1 -> xml2) -> Formlet xml1 m a -> Formlet xml2 m a
 plug' transformer formlet value = plug transformer (formlet value)
