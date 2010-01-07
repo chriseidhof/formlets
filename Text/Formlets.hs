@@ -83,8 +83,11 @@ input' :: Monad m
        => (String -> String -> xml) -- ^ function which takes the control name, the initial value, and returns the control markup
        -> Maybe String -- ^ optional default value
        -> Form xml m String
-input' i defaultValue = generalInput i' `check` maybe (Failure ["not in the data"]) Success
+input' i defaultValue = generalInput' i' fromLeft -- `check` maybe (Failure ["not in the data"]) Success
    where i' n v = i n (fromMaybe (fromMaybe "" defaultValue) v)
+         fromLeft n Nothing          = FR.NotAvailable $ n ++ " is not in the data"
+         fromLeft n (Just (Left x))  = FR.Success x
+         fromLeft n (Just (Right _)) = FR.Failure [n ++ " is a file, but should not have been."]
 
 {-# DEPRECATED inputM' "You can just use input'"#-}
 -- |deprecated. See 'input''
@@ -104,7 +107,23 @@ inputM' = input'
 optionalInput :: Monad m 
               => (String -> xml) -- ^ function which takes the form name and produces the control markup
               -> Form xml m (Maybe String)
-optionalInput i = generalInput (\n _ -> i n)
+optionalInput i = generalInput' (\n _ -> i n) fromLeft
+  where
+    fromLeft n Nothing          = FR.Success Nothing
+    fromLeft n (Just (Left x))  = FR.Success (Just x)
+    fromLeft n (Just (Right _)) = FR.Failure [n ++ " is a file, but should not have been."]
+
+-- |generate a form control
+--     
+-- see also 'input'', 'optionalInput', 'generalInputMulti'.
+generalInput :: Monad m =>
+                (String -> Maybe String -> xml) -- ^ function which takes the control name, an initial value if one was found in the environment and returns control markup
+             -> Form xml m (Maybe String)
+generalInput i = generalInput' (\n v -> i n v) fromLeft
+  where
+    fromLeft n Nothing          = FR.Success Nothing
+    fromLeft n (Just (Left x))  = FR.Success (Just x)
+    fromLeft n (Just (Right _)) = FR.Failure [n ++ " is a file, but should not have been."]
 
 -- a combination of lookup and freshName. 
 --  1. generate a fresh name
@@ -116,10 +135,11 @@ lookupFreshName f env = return $ (freshName >>= \name -> return $ f name $ (look
 -- |generate a form control
 -- 
 -- see also 'input'', 'optionalInput', 'generalInputMulti'.
-generalInput :: Monad m =>
+generalInput' :: Monad m =>
                 (String -> Maybe String -> xml) -- ^ function which takes the control name, an initial value if one was found in the environment and returns control markup
-             -> Form xml m (Maybe String)
-generalInput i = Form $ \env -> mkInput env <$> freshName
+             -> (String -> Maybe (Either String File) -> FR.FormResult a)
+             -> Form xml m a
+generalInput' i fromLeft = Form $ \env -> mkInput env <$> freshName
    where mkInput env name = (lookupFreshName fromLeft env, -- return . result name,
                              i name (value name env), UrlEncoded)
          -- A function to obtain the initial value used to compute the
@@ -133,9 +153,11 @@ generalInput i = Form $ \env -> mkInput env <$> freshName
                Nothing -> Nothing
          -- A function to obtain the form's return value from the
          -- environment returned after the form is run.
+               {-
          fromLeft n Nothing          = FR.NotAvailable $ n ++ " is not in the data"
          fromLeft n (Just (Left x))  = FR.Success (Just x)
          fromLeft n (Just (Right _)) = FR.Failure [n ++ " is a file, but should not have been."]
+-}
 
 -- |generate a form control which can return multiple values
 --
