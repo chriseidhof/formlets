@@ -14,7 +14,7 @@ License-file:    LICENSE
 Copyright:       (c) Jeremy Yallop / Tupil
 Author:          Jeremy Yallop / Chris Eidhof
 Homepage:        http://github.com/chriseidhof/formlets/tree/master
-Maintainer:      Chris Eidhof <ce+hackage@tupil.com>
+Maintainer:      Doug Beardsley <mightybyte@gmail.com>
 Build-Type:      Simple
 Cabal-Version: >= 1.6
 Extra-Source-Files: README
