@@ -7,7 +7,7 @@ module Text.Formlets ( input', inputM', optionalInput, generalInput, generalInpu
                      , xml, plug, plug2, plug'
                      , Env , Form , Formlet
                      , File (..), ContentType (..), FormContentType (..)
-                     , Rect, stringRect
+                     , Rect (..), stringRect
                      )
                      where
 
