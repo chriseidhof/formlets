@@ -1,9 +1,9 @@
-The original author of this library is Jeremy Yallop. It is currently maintained
-by Chris Eidhof.
+The original author of this library is Jeremy Yallop. It was packaged by Chris
+Eidhof, and is currently maintained by Doug Beardsley.
 
 Other contributors:
-* MightyByte
 * Eelco Lempsink
 * Jeremy Shaw
+* Judah Jacobson
 
 The formlets repository is hosted on github: http://github.com/chriseidhof/formlets/
