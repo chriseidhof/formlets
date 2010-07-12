@@ -1,5 +1,5 @@
 Name:            formlets
-Version:         0.7.1
+Version:         0.7.2
 Synopsis:        Formlets implemented in Haskell
 Description:     A modular way to build forms based on applicative functors,
                  based on the work described in:
@@ -34,6 +34,7 @@ Library
   Exposed-Modules:   Text.Formlets
                    , Text.Formlets.MassInput
                    , Text.XHtml.Strict.Formlets
+                   , Text.XHtml.Transitional.Formlets
   Other-Modules:   Text.Formlets.FormResult
   
 
