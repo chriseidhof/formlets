@@ -7,6 +7,7 @@ module Text.Blaze.Html5.Formlets
     , inputInteger
     , file
     , checkbox
+    , radio
     , Html5Form
     , Html5Formlet
     , module Text.Formlets
@@ -17,7 +18,7 @@ import qualified Text.Formlets as F
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
-import Data.Monoid (mappend)
+import Data.Monoid (mappend, mconcat)
 
 import Control.Applicative
 import Control.Applicative.Error
@@ -87,3 +88,26 @@ checkbox d = (optionalInput (html d)) `check` asBool
                        ! A.name (H.stringValue n)
                        ! A.id (H.stringValue n)
                        ! A.value "on"
+
+-- | A radio choice
+--
+radio :: Monad m => [(String, String)] -> Html5Formlet m String
+radio choices = input' $ \n v ->
+    mconcat $ map (makeRadio n v) $ zip choices [1 ..]
+    -- todo: validate that the result was in the choices
+  where
+    makeRadio name selected ((value, label), idx) = do
+        applyAttrs (radio name value id')
+        H.label ! A.for (H.stringValue id')
+                ! A.class_ "radio"
+                $ H.string label
+      where
+        applyAttrs | selected == value = (! A.checked "checked")
+                   | otherwise = id
+        id' = name ++ "_" ++ show idx
+
+    radio n v i = H.input ! A.type_ "radio"
+                          ! A.name (H.stringValue n)
+                          ! A.id (H.stringValue i)
+                          ! A.class_ "radio"
+                          ! A.value (H.stringValue v)
