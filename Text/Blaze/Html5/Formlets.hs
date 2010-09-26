@@ -8,21 +8,20 @@ module Text.Blaze.Html5.Formlets
     , file
     , checkbox
     , radio
+    , enumRadio
     , Html5Form
     , Html5Formlet
     , module Text.Formlets
     ) where
 
 import Text.Formlets hiding (massInput)
-import qualified Text.Formlets as F
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as H
 import qualified Text.Blaze.Html5.Attributes as A
-import Data.Monoid (mappend, mconcat)
+import Data.Monoid (mconcat)
 
 import Control.Applicative
 import Control.Applicative.Error
-import Data.List (elemIndex)
 
 type Html5Form m a    = Form H.Html m a
 type Html5Formlet m a = Formlet H.Html m a
@@ -93,11 +92,11 @@ checkbox d = (optionalInput (html d)) `check` asBool
 --
 radio :: Monad m => [(String, String)] -> Html5Formlet m String
 radio choices = input' $ \n v ->
-    mconcat $ map (makeRadio n v) $ zip choices [1 ..]
+    mconcat $ map (makeRadio n v) $ zip choices [1 :: Integer ..]
     -- todo: validate that the result was in the choices
   where
     makeRadio name selected ((value, label), idx) = do
-        applyAttrs (radio name value id')
+        applyAttrs (radio' name value id')
         H.label ! A.for (H.stringValue id')
                 ! A.class_ "radio"
                 $ H.string label
@@ -106,8 +105,18 @@ radio choices = input' $ \n v ->
                    | otherwise = id
         id' = name ++ "_" ++ show idx
 
-    radio n v i = H.input ! A.type_ "radio"
-                          ! A.name (H.stringValue n)
-                          ! A.id (H.stringValue i)
-                          ! A.class_ "radio"
-                          ! A.value (H.stringValue v)
+    radio' n v i = H.input ! A.type_ "radio"
+                           ! A.name (H.stringValue n)
+                           ! A.id (H.stringValue i)
+                           ! A.class_ "radio"
+                           ! A.value (H.stringValue v)
+
+-- | An radio choice for Enums
+--
+enumRadio :: (Monad m, Enum a) => [(a, String)] -> Html5Formlet m a
+enumRadio values defaultValue =
+    radio (map toS values) (show . fromEnum <$> defaultValue)
+    `check` convert `check` tryToEnum
+  where
+    toS = fmapFst (show . fromEnum)
+    convert v = maybeRead' v "Conversion error"
