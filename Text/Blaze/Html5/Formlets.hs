@@ -11,6 +11,7 @@ module Text.Blaze.Html5.Formlets
     , enumRadio
     , label
     , selectHtml
+    , selectRaw
     , Html5Form
     , Html5Formlet
     , module Text.Formlets
@@ -143,3 +144,10 @@ selectHtml choices name selected =
       where
         applyAttrs | selected == value = (! A.selected "selected")
                    | otherwise = id
+
+-- | A drop-down for selecting values
+--
+selectRaw :: (Monad m)
+          => [(String, H.Html)]     -- ^ Pairs of value/label
+          -> Html5Formlet m String  -- ^ Resulting formlet
+selectRaw = input' . selectHtml  -- todo: validate that result was in choices
