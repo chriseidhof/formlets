@@ -9,6 +9,7 @@ module Text.Blaze.Html5.Formlets
     , checkbox
     , radio
     , enumRadio
+    , label
     , Html5Form
     , Html5Formlet
     , module Text.Formlets
@@ -95,11 +96,11 @@ radio choices = input' $ \n v ->
     mconcat $ map (makeRadio n v) $ zip choices [1 :: Integer ..]
     -- todo: validate that the result was in the choices
   where
-    makeRadio name selected ((value, label), idx) = do
+    makeRadio name selected ((value, label'), idx) = do
         applyAttrs (radio' name value id')
         H.label ! A.for (H.stringValue id')
                 ! A.class_ "radio"
-                $ H.string label
+                $ H.string label'
       where
         applyAttrs | selected == value = (! A.checked "checked")
                    | otherwise = id
@@ -120,3 +121,8 @@ enumRadio values defaultValue =
   where
     toS = fmapFst (show . fromEnum)
     convert v = maybeRead' v "Conversion error"
+
+-- | A label
+--
+label :: Monad m => String -> Form H.Html m ()
+label = xml . H.label . H.string
