@@ -10,6 +10,7 @@ module Text.Blaze.Html5.Formlets
     , radio
     , enumRadio
     , label
+    , selectHtml
     , Html5Form
     , Html5Formlet
     , module Text.Formlets
@@ -126,3 +127,19 @@ enumRadio values defaultValue =
 --
 label :: Monad m => String -> Form H.Html m ()
 label = xml . H.label . H.string
+
+-- | This is a helper function to generate select boxes
+--
+selectHtml :: [(String, H.Html)]  -- ^ The values and their labels
+           -> String              -- ^ The name
+           -> String              -- ^ The value that is selected
+           -> H.Html
+selectHtml choices name selected =
+    H.select ! A.name (H.stringValue name)
+             $ mconcat $ map makeChoice choices
+  where
+    makeChoice (value, label') = applyAttrs $
+        H.option ! A.value (H.stringValue value) $ label'
+      where
+        applyAttrs | selected == value = (! A.selected "selected")
+                   | otherwise = id
