@@ -1,8 +1,16 @@
 {-# LANGUAGE OverloadedStrings #-}
-module Text.Blaze.Html5.Formlets ( input, textarea, password
-                                 , Html5Form, Html5Formlet
-                                 , module Text.Formlets
-                                 ) where
+module Text.Blaze.Html5.Formlets
+    ( input
+    , textarea
+    , password
+    , hidden
+    , inputInteger
+    , file
+    , checkbox
+    , Html5Form
+    , Html5Formlet
+    , module Text.Formlets
+    ) where
 
 import Text.Formlets hiding (massInput)
 import qualified Text.Formlets as F
@@ -42,3 +50,40 @@ password = input' $ \n v -> H.input ! A.type_ "password"
                                     ! A.name (H.stringValue n)
                                     ! A.id (H.stringValue n)
                                     ! A.value (H.stringValue v)
+
+-- | A hidden input field
+--
+hidden :: Monad m => Html5Formlet m String
+hidden = input' $ \n v -> H.input ! A.type_ "hidden"
+                                  ! A.name (H.stringValue n)
+                                  ! A.id (H.stringValue n)
+                                  ! A.value (H.stringValue v)
+
+-- | A validated integer component
+--
+inputInteger :: Monad m => Html5Formlet m Integer
+inputInteger x = input (fmap show x) `check` asInteger
+
+-- | A file upload form
+--
+file :: Monad m => Html5Form m File
+file = inputFile $ \n -> H.input ! A.type_ "file"
+                                 ! A.name (H.stringValue n)
+                                 ! A.id (H.stringValue n)
+
+-- | A checkbox with an optional default value
+--
+checkbox :: Monad m => Html5Formlet m Bool
+checkbox d = (optionalInput (html d)) `check` asBool
+  where
+    asBool (Just _) = Success True
+    asBool Nothing = Success False
+    html (Just True) n = H.input ! A.type_ "checkbox" 
+                                 ! A.name (H.stringValue n)
+                                 ! A.id (H.stringValue n)
+                                 ! A.value "on"
+                                 ! A.checked "checked"
+    html _ n = H.input ! A.type_ "checkbox"
+                       ! A.name (H.stringValue n)
+                       ! A.id (H.stringValue n)
+                       ! A.value "on"
