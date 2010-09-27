@@ -36,6 +36,7 @@ Library
                    , Text.Formlets.MassInput
                    , Text.XHtml.Strict.Formlets
                    , Text.XHtml.Transitional.Formlets
+                   , Text.Blaze.Html5.Formlets
   Other-Modules:   Text.Formlets.FormResult
   
 
