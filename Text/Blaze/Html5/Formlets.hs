@@ -12,11 +12,13 @@ module Text.Blaze.Html5.Formlets
     , label
     , selectHtml
     , selectRaw
+    , select
     , Html5Form
     , Html5Formlet
     , module Text.Formlets
     ) where
 
+import Data.List (elemIndex)
 import Text.Formlets hiding (massInput)
 import Text.Blaze.Html5 ((!))
 import qualified Text.Blaze.Html5 as H
@@ -151,3 +153,17 @@ selectRaw :: (Monad m)
           => [(String, H.Html)]     -- ^ Pairs of value/label
           -> Html5Formlet m String  -- ^ Resulting formlet
 selectRaw = input' . selectHtml  -- todo: validate that result was in choices
+
+-- | A drop-down for anything that is an instance of Eq
+--
+select :: (Eq a, Monad m)
+       => [(a, H.Html)]     -- ^ Pairs of value/label
+       -> Html5Formlet m a  -- ^ Resulting formlet
+select ls v = selectRaw (map f $ zip [0 :: Integer ..] ls) selected
+    `check` asInt `check` convert
+  where
+    selected       = show <$> (v >>= flip elemIndex (map fst ls))
+    f (idx, (_,l)) = (show idx, l)
+    convert i      | i >= length ls || i < 0 = Failure ["Out of bounds"]
+                   | otherwise               = Success $ fst $ ls !! i
+    asInt   s      = maybeRead' s (s ++ " is not a valid int")
