@@ -16,7 +16,8 @@ import Data.Either (partitionEithers)
 import Data.Monoid
 import Control.Applicative
 import Control.Applicative.Error
-import Control.Applicative.State
+import Control.Monad
+import Control.Monad.Trans.State
 import Data.Maybe (isJust, fromMaybe)
 import Data.List (intercalate)
 import qualified Text.Formlets.FormResult as FR
